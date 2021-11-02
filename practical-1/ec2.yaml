@@ -4,14 +4,14 @@ Parameters:
     Description: Name of an existing EC2 key pair for SSH access to the EC2 instance.
     Type: AWS::EC2::KeyPair::KeyName
 
-  SSHLocation:
-    Description: The IP address range that can be used to SSH to the EC2 instances
-    Type: String
-    MinLength: '9'
-    MaxLength: '18'
-    Default: 0.0.0.0/0
-    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
-    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  # SSHLocation:
+  #   Description: The IP address range that can be used to SSH to the EC2 instances
+  #   Type: String
+  #   MinLength: '9'
+  #   MaxLength: '18'
+  #   Default: 0.0.0.0/0
+  #   AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+  #   ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
 
   ImageId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
@@ -53,14 +53,15 @@ Resources:
     Properties:
       GroupDescription: "Enable HTTP access via port 80 + SSH access"
       GroupName: "Demo webserver security group"
-      # VpcId:
-      #    Ref: myVPC
+      # VpcId: !Ref myVPC
       SecurityGroupIngress:
       - CidrIp: 0.0.0.0/0
         FromPort: 80
         IpProtocol: tcp
         ToPort: 80
-      - CidrIp: !Ref SSHLocation
+      # here i allow 0.0.0.0/0 for testing purpose. in dev/prod we should define internel Cidr block as following comment
+      # - CidrIp: !Ref SSHLocation
+      - CidrIp: 0.0.0.0/0
         FromPort: 22
         IpProtocol: tcp
         ToPort: 22
