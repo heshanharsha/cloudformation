@@ -1,0 +1,1 @@
+EC2 server with web server installed using cfn-init
