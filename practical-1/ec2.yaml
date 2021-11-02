@@ -19,6 +19,7 @@ Parameters:
 
 Resources:
   WebServer:
+    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-instance.html
     Type: AWS::EC2::Instance
     Properties:
       ImageId: !Ref ImageId
@@ -40,11 +41,20 @@ Resources:
            find /var/www -type d -exec sudo chmod 2775 {} \;
            find /var/www -type f -exec sudo chmod 0664 {} \;
            echo "<?php phpinfo(); ?>" > /var/www/html/phpinfo.php
+      Tags: 
+        - Key: "project"
+          Value: "demo"
+        - Key: "environment"
+          Value: "dev"
 
   WebServerSecurityGroup:
+    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: "Enable HTTP access via port 80 + SSH access"
+      GroupName: "Demo webserver security group"
+      # VpcId:
+      #    Ref: myVPC
       SecurityGroupIngress:
       - CidrIp: 0.0.0.0/0
         FromPort: 80
@@ -54,3 +64,8 @@ Resources:
         FromPort: 22
         IpProtocol: tcp
         ToPort: 22
+      Tags: 
+        - Key: "project"
+          Value: "demo"
+        - Key: "environment"
+          Value: "dev"
