@@ -1,43 +1,56 @@
 ---
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 key pair for SSH access to the EC2 instance.
+    Type: AWS::EC2::KeyPair::KeyName
+
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
 Resources:
-  MyInstance:
+  WebServer:
     Type: AWS::EC2::Instance
     Properties:
-      AvailabilityZone: us-east-1a
-      ImageId: ami-0742b4e673072066f
+      ImageId: !Ref ImageId
       InstanceType: t2.micro
+      KeyName: !Ref KeyName
       SecurityGroups:
-        - !Ref SSHSecurityGroup
-        - !Ref ServerSecurityGroup
-  
-  # an elastic IP for our instance
-  MyEIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      InstanceId: !Ref MyInstance
-  
-  # our EC2 security group
-  SSHSecurityGroup:
+        - !Ref WebServerSecurityGroup
+      UserData:
+        Fn::Base64: |
+           #!/bin/bash
+           yum update -y
+           amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
+           yum install -y httpd mariadb-server
+           systemctl start httpd
+           systemctl enable httpd
+           usermod -a -G apache ec2-user
+           chown -R ec2-user:apache /var/www
+           chmod 2775 /var/www
+           find /var/www -type d -exec sudo chmod 2775 {} \;
+           find /var/www -type f -exec sudo chmod 0664 {} \;
+           echo "<?php phpinfo(); ?>" > /var/www/html/phpinfo.php
+
+  WebServerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Enable SSH access via port 22
+      GroupDescription: "Enable HTTP access via port 80 + SSH access"
       SecurityGroupIngress:
       - CidrIp: 0.0.0.0/0
+        FromPort: 80
+        IpProtocol: tcp
+        ToPort: 80
+      - CidrIp: !Ref SSHLocation
         FromPort: 22
         IpProtocol: tcp
         ToPort: 22
-
-  # our second EC2 security group
-  ServerSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: allow connections from specified CIDR ranges
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: 0.0.0.0/0
-      - IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: 192.168.1.1/32
