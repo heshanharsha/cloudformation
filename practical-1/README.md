@@ -1,1 +1,1 @@
-EC2 server with web server installed using cfn-init
+### EC2 instance with web server installed using cfn-init

@@ -75,7 +75,3 @@ Resources:
           Value: "demo"
         - Key: "environment"
           Value: "dev"
-
-#TODO
-# Custome storage size for root block
-# Add Elastic IP
