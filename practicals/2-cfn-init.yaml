@@ -1,9 +1,11 @@
 ---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS CloudFormation Sample Template for CFN Init
 Parameters:
   KeyName:
     # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html#aws-specific-parameter-types
     Type: AWS::EC2::KeyPair::KeyName
-    Description: Name of an existing EC2 key pair for SSH access to the EC2 instance.
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
 
   # SSHLocation:
   #   Description: The IP address range that can be used to SSH to the EC2 instances
@@ -22,6 +24,98 @@ Resources:
   WebServer:
     # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-instance.html
     Type: AWS::EC2::Instance
+    Metadata:
+      Comment: Install a simple PHP application
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              httpd: []
+              php: []
+          groups:
+            apache: {}
+          users:
+            "apache":
+              groups:
+                - "apache"
+          sources:
+            "/home/ec2-user/aws-cli": "https://github.com/aws/aws-cli/tarball/master"
+          files:
+            "/tmp/cwlogs/apacheaccess.conf":
+              content: !Sub |
+                [general]
+                state_file= /var/awslogs/agent-state
+                [/var/log/httpd/access_log]
+                file = /var/log/httpd/access_log
+                log_group_name = ${AWS::StackName}
+                log_stream_name = {instance_id}/apache.log
+                datetime_format = %d/%b/%Y:%H:%M:%S
+              mode: '000400'
+              owner: apache
+              group: apache
+            "/var/www/html/index.php":
+              content: !Sub |
+                <?php
+                echo '<h1>AWS CloudFormation sample PHP application for ${AWS::StackName}</h1>';
+                ?>
+              mode: '000644'
+              owner: apache
+              group: apache
+            "/etc/cfn/cfn-hup.conf":
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+              mode: "000400"
+              owner: "root"
+              group: "root"
+            "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.WebServerHost.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WebServerHost --region ${AWS::Region}
+              mode: "000400"
+              owner: "root"
+              group: "root"
+            # Fetch a webpage from a private S3 bucket
+            "/var/www/html/webpage.html":
+              source: !Sub "https://${MyS3BucketName}.s3.${AWS::Region}.amazonaws.com/webpage.html"
+              mode: '000644'
+              owner: apache
+              group: apache
+              authentication: S3AccessCreds
+          commands:
+            test:
+              command: "echo \"$MAGIC\" > test.txt"
+              env:
+                MAGIC: "I come from the environment!"
+              cwd: "~"
+          services:
+            sysvinit:
+              httpd:
+                enabled: 'true'
+                ensureRunning: 'true'
+              postfix:
+                enabled: 'false'
+                ensureRunning: 'false'
+              cfn-hup:
+                enable: 'true'
+                ensureRunning: 'true'
+                files:
+                  - "/etc/cfn/cfn-hup.conf"
+                  - "/etc/cfn/hooks.d/cfn-auto-reloader.conf"
+      AWS::CloudFormation::Authentication:
+        # Define S3 access credentials
+        S3AccessCreds:
+          type: S3
+          buckets:
+            - !Sub ${MyS3BucketName}
+          roleName: !Ref InstanceRole
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+        
     Properties:
       ImageId: !Ref ImageId
       InstanceType: t2.micro
