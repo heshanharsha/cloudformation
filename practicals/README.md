@@ -2,4 +2,4 @@
 
 ##### Using user data (1-ec2-user-data.yaml)
 
-##### Usinf cfn-init (2-cfn-init.yaml)
+##### Using cfn-init (2-cfn-init.yaml)
