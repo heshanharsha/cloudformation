@@ -1,0 +1,119 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS CloudFormation Template for provisioning ec2 instance
+Parameters:
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+  InstanceType:
+    Type: String
+    Default: t2.small
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - m5.large
+    Description: Enter t2.micro, t2.medium, or m5.large. Default is t2.small.
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 key pair for SSH access to the EC2 instance.
+    
+  SSHLocation:
+    Type: String
+    Default: 0.0.0.0/0
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+Resources:
+  EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref Ec2Instance
+      Tags:
+        - Key: "Name"
+          Value: "Testing docker server EIP" 
+        - Key: "project"
+          Value: "iot"
+        - Key: "environment"
+          Value: "dev"
+
+  Ec2InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable access via port 22
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !Ref SSHLocation
+      Tags:
+        - Key: "Name"
+          Value: "Testing docker server SG" 
+        - Key: "project"
+          Value: "iot"
+        - Key: "environment"
+          Value: "dev"
+
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      Comment: Install docker
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              docker: []
+          commands:
+            docker_for_ec2_user:
+              command: usermod -G docker ec2-user
+          services:
+            sysvinit:
+              docker:
+                enabled: 'true'
+                ensureRunning: 'true'
+
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT5M
+
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      SecurityGroups:
+        - !Ref Ec2InstanceSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -xe
+
+            # Get the latest CloudFormation helper scripts
+            yum install -y aws-cfn-bootstrap
+
+            # Start cfn-init
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource Ec2Instance --region ${AWS::Region}
+
+            # cfn-init completed so signal success or not
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource Ec2Instance --region ${AWS::Region}
+      Tags:
+        - Key: "Name"
+          Value: "Testing docker server" 
+        - Key: "project"
+          Value: "iot"
+        - Key: "environment"
+          Value: "dev"
+
+Outputs:
+  InstanceId:
+    Description: The instance ID of the server
+    Value:
+      !Ref Ec2Instance
+  PublicIP:
+    Description: Public IP address of the server
+    Value:
+      !GetAtt Ec2Instance.PublicIp
